@@ -3,10 +3,16 @@
 	<head>
 		<meta charset="UTF-8">
 		<title>Js Adventure!</title>
-		<link rel="syleheet" href="adventure.css">
+		<link rel="stylesheet" href="adventure.css">
 	</head>
 	<body>
-		<canvas width="800" height="800" id="JSadventure"></canvas>
+		<div class="adventureContainer">
+			<canvas width="600" height="600" id="JSadventure" tabindex="1"></canvas>
+			<div id="commandBox">
+				<div class="log"></div>
+			  	<input type="text" class="commandLine" />
+			</div>
+		</div>
 		<script src="adventure.js"></script>
 	</body>
 	</html>	

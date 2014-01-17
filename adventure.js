@@ -3,6 +3,13 @@
 function defaultVal(variable, value) {
   return variable === undefined ? value : variable;
 }
+function defaultObj(object, value) {
+  object = defaultVal(object, {});
+  for (var i in value) {
+    object[i] = defaultVal(object[i], value[i]);
+  }
+  return object;
+}
 
 function bound(num, a, b) {
   var low = Math.min(a, b);
@@ -10,6 +17,29 @@ function bound(num, a, b) {
   return Math.max(low, Math.min(high, num));
 }
 
+
+//function for code that users write
+
+function userCode(code) {
+  var resultant;
+  adventure.command.history = [code].concat(adventure.command.history);
+
+  //user-accesable variables;
+  function say(what) {
+    adventure.command.message('you: ' + what); 
+  }
+
+  try {
+    resultant = (function() {
+      var adventure = null;
+      return eval(code);
+    })();
+  }
+  catch (err) {
+    adventure.command.message("error: " + err);
+  }
+  if (resultant !== undefined) adventure.command.message(resultant);
+}
 
 //constructors
 
@@ -27,9 +57,27 @@ var adventure = {
   el : document.getElementById('JSadventure'),
   canvas : document.getElementById('JSadventure').getContext('2d'),
   
-  
+  command : {
+
+    box : document.getElementById('commandBox'),
+    log : document.querySelector('#commandBox .log'),
+    line : document.querySelector('#commandBox .commandLine'),
+
+    history : [],
+    historyIndex : -1,
+    
+    message : function(what) {
+      var message = document.createElement('div');
+      message.innerHTML = what;
+      adventure.command.log.appendChild(message);
+    }
+  },
+
   world : {
     
+    height: 800,
+    width : 800,
+
     
     hero : {
 
@@ -45,7 +93,7 @@ var adventure = {
       image : ["images/pixlwizard.png"],
       
       setup : {
-        repeat : "no-repeat"
+        repeat : "no-repeat",
       },
       
       move : function(x, y, type) {
@@ -71,8 +119,16 @@ var adventure = {
         }
         this.x = bound(this.compX, 0, squares.x - 1); //dat zero index
         this.y = bound(this.compY, 0, squares.y - 1);
+        this.setup.scale = {
+          "x" : adventure.el.width/adventure.world.width,
+          "y" : adventure.el.height/adventure.world.height
+        };
         adventure.draw(this, this.x, this.y);
       }
+    },
+
+    background : {
+      image : ["images/pixlforset.png"]
     },
     
     grass : {
@@ -116,8 +172,10 @@ var adventure = {
         if (targetGate.state.closed) {
           targetGate.state.closed = false;
           targetGate.setup.imgnum = 1;
+          // adventure.map.draw("terain");
+          adventure.map.draw("objects", false); //just to reset the cache, it feels dirty I know :(
           adventure.map.draw("terain");
-          adventure.map.draw("objects", false);
+          adventure.map.draw("objects");
           //adventure.draw(targetGate, hero.compX, hero.compY);
           hero.compX = hero.x;
           hero.compY = hero.y;
@@ -166,13 +224,13 @@ var adventure = {
       start : {x: 0, y:5},
       
       draw : function(what, useCache) {
-        useCache = defaultVal(useCache, true); //cache won't work because of tainted canvas :/
+        useCache = defaultVal(useCache, true);
         var setup, i, v, x, y,
             cacheCanvas, context, cacheImg, drawHero,
             toLoopThrough = {};
         if (what === "all" || what === undefined) {
           toLoopThrough = {"terain" : this.terain, "objects" : this.objects};
-          drawHero = true
+          drawHero = true;
         } else {
           toLoopThrough[what] = this[what];
         }
@@ -180,11 +238,11 @@ var adventure = {
           v = toLoopThrough[i];
           v || console.error("unexpected value on v:" + v + ".\b what = " + what);
           if (this.cache[i] && useCache) {
-          adventure.canvas.drawImage(this.cache[i], 0, 0);
+          adventure.canvas.drawImage(this.cache[i], 0, 0, adventure.el.width, adventure.el.height);
           } else {
             cacheCanvas = document.createElement('canvas');
-            cacheCanvas.width = adventure.el.width;
-            cacheCanvas.height = adventure.el.height;
+            cacheCanvas.width = adventure.world.width;
+            cacheCanvas.height = adventure.world.height;
             context = cacheCanvas.getContext('2d');
             for (y in v) {
               for (x in v) {
@@ -196,7 +254,7 @@ var adventure = {
             }
             cacheImg = new Image();
             cacheImg.onload = function() {
-              adventure.canvas.drawImage(this, 0, 0);
+              adventure.canvas.drawImage(this, 0, 0, adventure.el.width, adventure.el.height);
               adventure.world.hero.move();
             };
             cacheImg.src = cacheCanvas.toDataURL("image/png");
@@ -260,7 +318,7 @@ var adventure = {
     hero.move(map.start.x, map.start.y, "abs");
   },
   
-  draw : function(obj, x, y, setupdata, canvas) { 
+  draw : function(obj, x, y, setupdata, canvas) {
     //console.log(setupdata);
     x = defaultVal(x, 0);
     y = defaultVal(y, 0);
@@ -278,10 +336,11 @@ var adventure = {
     );
     setupdata.height = defaultVal(setupdata.height, "auto");
     setupdata.width = defaultVal(setupdata.width, "auto");
+    setupdata.scale = defaultObj(setupdata.scale, {x: 1, y: 1});
     //console.log(setupdata);
     var adv = adventure,
-        width = adv.el.height / adv.squares.x,
-        height = adv.el.height / adv.squares.y,
+        width = canvas.canvas.height / adv.squares.x,
+        height = canvas.canvas.height / adv.squares.y,
         xPos, yPos;
     
     if (obj.image) {
@@ -296,9 +355,11 @@ var adventure = {
           imgHeight = parseInt(setupdata.height === "auto" ?
             img[imgNum].height :
             parseInt(setupdata.height) * height);
+          imgHeight *= setupdata.scale.x;
           imgWidth = parseInt(setupdata.width === "auto" ?
             img[imgNum].width :
             parseInt(setupdata.width) * width);
+          imgWidth *= setupdata.scale.y;
           switch (setupdata.align) {
             case "center":
               xPos = x * width + (width - imgWidth) / 2;
@@ -323,7 +384,7 @@ var adventure = {
           var data = this.dataset;
           adventure.loaded++;
           adventure.world[data.i].image[data.j] = this;
-          if (adventure.loaded === adventure.toLoad) { 
+          if (adventure.loaded === adventure.toLoad) {
            adventure.init();
           }
         };
@@ -344,32 +405,53 @@ var adventure = {
   },
   
   eventHandling : function () {
-    var hero = adventure.world.hero ;
+    var hero = adventure.world.hero,
+        el = adventure.el,
+        command = adventure.command;
     document.addEventListener('keydown', function(event) {
-      //console.log(event.which);
-      switch (event.which) {
-        case 65: //a
-        case 37: //left
-          hero.move(-1, 0);
-          break;
-        case 87: //w
-        case 38: //up
-          hero.move(0, -1);
-          break;
-        case 68: //d
-        case 39: //right
-          hero.move(1, 0);
-          break;
-        case 83: //s
-        case 40: //down
-          hero.move(0, 1);
-          break;
-      }
+      if (event.target.id == adventure.el.id) {
+        switch (event.which) {
+          case 65: //a
+          case 37: //left
+            hero.move(-1, 0);
+            break;
+          case 87: //w
+          case 38: //up
+            hero.move(0, -1);
+            break;
+          case 68: //d
+          case 39: //right
+            hero.move(1, 0);
+            break;
+          case 83: //s
+          case 40: //down
+            hero.move(0, 1);
+            break;
+        }
+     } else if (event.target.classList === command.line.classList) {
+        switch (event.which) {
+          case 13: //enter
+            userCode(command.line.value);
+            command.line.value = '';
+            command.historyIndex = -1;
+            break;
+          case 38: //up
+            command.historyIndex += 1;
+            command.historyIndex = Math.min(command.historyIndex, command.history.length - 1);
+            command.line.value = command.history[command.historyIndex];
+            break;
+          case 40: //down
+            command.historyIndex -= 1;
+            command.historyIndex = Math.max(command.historyIndex, 0);
+            command.line.value = command.history[command.historyIndex];
+            break;
+        }
+     }
     });
   }
 
 };
-
+"use strict";
 adventure.loadResources(); //loadResources will call init when it's done
 
 
