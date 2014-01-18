@@ -27,7 +27,7 @@ function userCode(code) {
   adventure.command.history.unshift(code);
 
   //user-accesable variables;
-  var fireball = new Spell(20, "fire", "images/pixlfireball.png");
+  var fireball = new Spell(200, "fire", "images/pixlfireball.png");
 
   function say(what) {
     adventure.command.message('you: ' + what);
@@ -86,8 +86,9 @@ var Creature = function(hp, power, image, setup) {
     if (this.hp <= 0) { //death x_x
       console.log("hi");
       adventure.world.mode = "map";
-      console.log(adventure.world.mode)
+      console.log(adventure.world.mode);
       map.objects[hero.y][hero.x] = 0;
+      adventure.command.message("You win!");
       adventure.map.mapActions();
       adventure.map.draw("objects", false);
       adventure.map.draw();
@@ -96,9 +97,9 @@ var Creature = function(hp, power, image, setup) {
   };
 
   this.actions = [new Action(0, 0, function() {
-        adventure.combat.start([self]);
-        console.log("combat started!");
-      })];
+      adventure.combat.start([self]);
+      console.log("combat started!");
+    })];
 
 };
 
@@ -108,7 +109,9 @@ var Spell = function(power, type, image){
   this.type = type;
   this.image = image;
   this.cast = function() {
-    adventure.combat.target.damage(Math.pow(power, 1.1));
+    var damage = Math.pow(power, 1.1);
+    adventure.command.message("hit! " + damage + " points of damage")
+    adventure.combat.target.damage(damage);
   };
 };
 //the main thing
@@ -228,12 +231,54 @@ var adventure = {
     },
 
     treasure : {
-      image : ["images/pixlchest.png"],
+      image : ["images/pixlchest.png", "images/pixlchest2.png"],
+
+      state : {
+        closed : true
+      },
       
       setup : {
-       repeat : "no-repeat"
-      }
+       repeat : "no-repeat",
+       imgnum : 0
+      },
       
+
+      open : function() {
+        var i, v, key;
+        for (i in adventure.world.hero.inventory) {
+          v = adventure.world.hero.inventory[i];
+          if (v.opens === "chest") key = true;
+        }
+        if (key) {
+          this.state.closed = false;
+          this.setup.imgnum = 1;
+          adventure.map.draw("objects", false);
+          adventure.map.draw("terain");
+          adventure.map.draw("objects");
+          adventure.command.message("Victory!");
+        }
+      }
+    },
+
+    key : {
+      image: ["images/pixlkey.png"],
+
+      setup : {
+        repeat : "no-repeat"
+      },
+
+      opens : "chest", 
+
+      actions : [new Action(0, 0, function(){
+        var hero = adventure.world.hero;
+        adventure.world.hero.inventory.push(this.parent);
+        console.log({x: hero.compX, y: hero.compY});
+        adventure.map.objects[hero.compY][hero.compX] = 0;
+        adventure.map.mapActions();
+        adventure.map.mapActions();
+        adventure.map.draw("objects", false);
+        adventure.map.draw();
+      })]
     },
     
     gate : {
@@ -280,6 +325,7 @@ var adventure = {
         p = adventure.world.gate,
         
         t = adventure.world.treasure,
+        k = adventure.world.key,
 
         o = adventure.world.ork;
     
@@ -298,7 +344,7 @@ var adventure = {
       ],
       
      objects : [
-        [0,0,0,0,0,0,0,0,o,0],
+        [0,0,0,0,0,0,0,0,o,k],
         [0,0,0,0,0,0,0,0,0,0],
         [0,0,0,0,0,0,0,0,0,0],
         [0,0,0,0,0,0,0,0,0,0],
