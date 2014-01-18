@@ -61,7 +61,10 @@ var Action = function(x, y, callback) {
   this.callback = callback;
 };
 
+
+
 var Creature = function(hp, power, image, setup) {
+  var self = this;
   setup = defaultObj(setup, {
     "repeat" : "no-repeat"
   });
@@ -72,14 +75,29 @@ var Creature = function(hp, power, image, setup) {
   this.attack = function () {
     adventure.world.hero.damage(this.power);
   };
+
+  this.damage = function(amount) {
+    this.hp -= amount;
+    if (this.hp <= 0) {
+      //death x_x
+    }
+  };
+
   this.actions = [new Action(0, 0, function() {
-        adventure.combat.start();
+        adventure.combat.start([self]);
       })];
-
-
 
 };
 
+
+var Spell = function(power, type, image){
+  this.power = power;
+  this.type = type;
+  this.image = image;
+  this.cast = function() {
+
+  };
+};
 //the main thing
 
 var adventure = {
@@ -123,6 +141,9 @@ var adventure = {
       hp : 100,
       damage : function(ammount){
         this.hp -= ammount;
+        if (this.hp <= 0) {
+          adventure.gameOver() //to be implemented
+        }
       },
       
       inventory : [],
@@ -165,11 +186,11 @@ var adventure = {
     },
 
     ork : new Creature(100, 10,
-      ["images/pixlork.png"]
+      ["images/pixlork2.png"]
     ),
 
     background : {
-      image : ["images/pixlforest2.png"],
+      image : ["images/pixlfield.png"],
       dim : {
         x: 800,
         y : 800
@@ -248,7 +269,7 @@ var adventure = {
     return {
       terain : [
         [g,g,g,g,g,g,g,g,g,g],
-        [g,g,g,g,g,g,g,g,g,g],
+        [g,g,g,g,g,g,g,g,b,b],
         [g,g,g,g,g,g,g,g,g,g],
         [g,g,g,g,b,b,b,b,b,g],
         [g,g,g,g,b,g,g,g,b,g],
@@ -352,6 +373,7 @@ var adventure = {
   combat : {
 
     start : function(enemies) {
+      console.log(enemies);
       this.enemies = enemies;
       var world = adventure.world,
           canvas = adventure.canvas;
@@ -364,9 +386,16 @@ var adventure = {
       var world = adventure.world,
           hero = world.hero,
           el = adventure.el,
-          canvas = adventure.canvas;
+          canvas = adventure.canvas,
+          enemies = this.enemies,
+          i,v;
       //canvas.drawImage(hero.image[0], 0, 0);
-      canvas.drawImage(hero.image[0], el.width/5, el.height/2);
+      canvas.drawImage(hero.image[0], el.width/5, 600 - 115);
+      for (i in enemies) {
+        v = enemies[i];
+        console.log(v);
+        canvas.drawImage(v.image[0], 4*el.width/5, 600 - 115)
+      }
     },
 
   },
