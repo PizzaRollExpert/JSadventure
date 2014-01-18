@@ -27,12 +27,14 @@ function userCode(code) {
   adventure.command.history.unshift(code);
 
   //user-accesable variables;
+  var fireball = new Spell(20, "fire", "images/pixlfireball.png");
+
   function say(what) {
     adventure.command.message('you: ' + what);
   }
   function getObjects() {
     var result = [], x, y,
-      hero = adventure.world.hero;
+        hero = adventure.world.hero;
     for (x = hero.x - 1; hero.x + 1 >= x; x++) {
       for (y = hero.y - 1; hero.y + 1 >= y; y++) {
         result.push(adventure.map.objects[y][x]);
@@ -42,12 +44,12 @@ function userCode(code) {
   }
   try {
     resultant = (function() {
-      var adventure = undefined, Action = undefined, Creature = undefined;
+      var adventure, Action, Creature, resultant; //shielding things from user
       return eval(code);
     })();
   }
   catch (err) {
-    console.error(err);
+    console.error(new Error(err));
     adventure.command.message("error: " + err);
   }
   if (resultant !== undefined) adventure.command.message(resultant);
@@ -77,14 +79,25 @@ var Creature = function(hp, power, image, setup) {
   };
 
   this.damage = function(amount) {
+    var world = adventure.world,
+        map = adventure.map,
+        hero = world.hero;
     this.hp -= amount;
-    if (this.hp <= 0) {
-      //death x_x
+    if (this.hp <= 0) { //death x_x
+      console.log("hi");
+      adventure.world.mode = "map";
+      console.log(adventure.world.mode)
+      map.objects[hero.y][hero.x] = 0;
+      adventure.map.mapActions();
+      adventure.map.draw("objects", false);
+      adventure.map.draw();
+      hero.move();
     }
   };
 
   this.actions = [new Action(0, 0, function() {
         adventure.combat.start([self]);
+        console.log("combat started!");
       })];
 
 };
@@ -95,7 +108,7 @@ var Spell = function(power, type, image){
   this.type = type;
   this.image = image;
   this.cast = function() {
-
+    adventure.combat.target.damage(Math.pow(power, 1.1));
   };
 };
 //the main thing
@@ -183,6 +196,10 @@ var adventure = {
         };
         if (adventure.world.mode === "map") adventure.draw(this, this.x, this.y);
       }
+    },
+
+    preojectiles : {
+      fireball : "images/pixlfireball.png"
     },
 
     ork : new Creature(100, 10,
@@ -343,7 +360,7 @@ var adventure = {
             v,f,g,k,
             j,o,
             toMap = [this.terain,this.objects];
-        if (!this.actions) {
+        //if (!this.actions) {
           this.actions = [];
           for (j = 0; adventure.squares.y > j; j++) {
             this.actions[j] = [];
@@ -351,7 +368,7 @@ var adventure = {
               this.actions[j][o] = [];
             }
           }
-        }
+        //}
         for (i in toMap) {
           v = toMap[i];
           for (y in v) {
@@ -378,6 +395,7 @@ var adventure = {
       var world = adventure.world,
           canvas = adventure.canvas;
       world.mode = "combat";
+      this.target = enemies[0];
       canvas.drawImage(world.background.image[0], 0, 0, 600, 600);
       this.drawActors();
     },
@@ -394,7 +412,7 @@ var adventure = {
       for (i in enemies) {
         v = enemies[i];
         console.log(v);
-        canvas.drawImage(v.image[0], 4*el.width/5, 600 - 115)
+        canvas.drawImage(v.image[0], 4*el.width/5, 600 - 115);
       }
     },
 
