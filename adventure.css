@@ -23,6 +23,7 @@ canvas {
   color: white;
   padding: 3px 5px 0 3px;
   margin: 0;
+  font-family: "Andale Mono", AndaleMono, monospace;
 }
 #commandBox .commandLine {
   display: block;
@@ -35,11 +36,12 @@ canvas {
   background: #675438;
   color: white;
   outline: 0;
+  font-family: "Andale Mono", AndaleMono, monospace;
+  width: calc(100% - 4px);
 }
 #commandBox .log {
   height: 115px;
   overflow-y: auto;
-  font-family: "Andale Mono", AndaleMono, monospace;
   font-size: 12px;
 }
 #commandBox .log::-webkit-scrollbar {

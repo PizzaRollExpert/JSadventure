@@ -1,3 +1,5 @@
+"use strict";
+
 //utility functions
 
 function defaultVal(variable, value) {
@@ -22,20 +24,30 @@ function bound(num, a, b) {
 
 function userCode(code) {
   var resultant;
-  adventure.command.history = [code].concat(adventure.command.history);
+  adventure.command.history.unshift(code);
 
   //user-accesable variables;
   function say(what) {
-    adventure.command.message('you: ' + what); 
+    adventure.command.message('you: ' + what);
   }
-
+  function getObjects() {
+    var result = [], x, y,
+      hero = adventure.world.hero;
+    for (x = hero.x - 1; hero.x + 1 >= x; x++) {
+      for (y = hero.y - 1; hero.y + 1 >= y; y++) {
+        result.push(adventure.map.objects[y][x]);
+      }
+    }
+    return result;
+  }
   try {
     resultant = (function() {
-      var adventure = null;
+      var adventure = undefined, Action = undefined, Creature = undefined;
       return eval(code);
     })();
   }
   catch (err) {
+    console.error(err);
     adventure.command.message("error: " + err);
   }
   if (resultant !== undefined) adventure.command.message(resultant);
@@ -49,6 +61,24 @@ var Action = function(x, y, callback) {
   this.callback = callback;
 };
 
+var Creature = function(hp, power, image, setup) {
+  setup = defaultObj(setup, {
+    "repeat" : "no-repeat"
+  });
+  this.hp = hp;
+  this.setup = setup;
+  this.power = power;
+  this.image = image;
+  this.attack = function () {
+    adventure.world.hero.damage(this.power);
+  };
+  this.actions = [new Action(0, 0, function() {
+        adventure.combat.start();
+      })];
+
+
+
+};
 
 //the main thing
 
@@ -78,7 +108,9 @@ var adventure = {
     height: 800,
     width : 800,
 
-    
+    mode : "map",
+
+
     hero : {
 
       
@@ -87,6 +119,11 @@ var adventure = {
       
       compX : 0,
       compY : 0,
+
+      hp : 100,
+      damage : function(ammount){
+        this.hp -= ammount;
+      },
       
       inventory : [],
       
@@ -123,12 +160,20 @@ var adventure = {
           "x" : adventure.el.width/adventure.world.width,
           "y" : adventure.el.height/adventure.world.height
         };
-        adventure.draw(this, this.x, this.y);
+        if (adventure.world.mode === "map") adventure.draw(this, this.x, this.y);
       }
     },
 
+    ork : new Creature(100, 10,
+      ["images/pixlork.png"]
+    ),
+
     background : {
-      image : ["images/pixlforset.png"]
+      image : ["images/pixlforest2.png"],
+      dim : {
+        x: 800,
+        y : 800
+      }
     },
     
     grass : {
@@ -167,20 +212,26 @@ var adventure = {
       },
       
       actions : [new Action(0, 0, function() {
-        var hero = adventure.world.hero,
-            targetGate = this.parent;
-        if (targetGate.state.closed) {
-          targetGate.state.closed = false;
-          targetGate.setup.imgnum = 1;
-          // adventure.map.draw("terain");
-          adventure.map.draw("objects", false); //just to reset the cache, it feels dirty I know :(
-          adventure.map.draw("terain");
-          adventure.map.draw("objects");
-          //adventure.draw(targetGate, hero.compX, hero.compY);
+        if (this.parent.state.closed) {
+          var hero = adventure.world.hero;
           hero.compX = hero.x;
           hero.compY = hero.y;
         }
-        })]
+        })],
+      open : function() {
+        this.state.closed = false;
+        this.setup.imgnum = 1;
+        adventure.map.draw("objects", false); //just to reset the cache, it feels dirty I know :(
+        adventure.map.draw("terain");
+        adventure.map.draw("objects");
+      },
+      close : function() {
+        this.state.closed = true;
+        this.setup.imgnum = 0;
+        adventure.map.draw("objects", false);
+        adventure.map.draw("terain");
+        adventure.map.draw("objects");
+      }
     }
   },
   
@@ -190,7 +241,9 @@ var adventure = {
         b = adventure.world.brick,
         p = adventure.world.gate,
         
-        t = adventure.world.treasure;
+        t = adventure.world.treasure,
+
+        o = adventure.world.ork;
     
     return {
       terain : [
@@ -207,7 +260,7 @@ var adventure = {
       ],
       
      objects : [
-        [0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,o,0],
         [0,0,0,0,0,0,0,0,0,0],
         [0,0,0,0,0,0,0,0,0,0],
         [0,0,0,0,0,0,0,0,0,0],
@@ -289,12 +342,33 @@ var adventure = {
                 k.parent = f[x];
                 this.actions[parseInt(y) + parseInt(k.y)][parseInt(x) + parseInt(k.x)].push(k);
               }
-              //this.actions[y][x] = this.actions[y][x].concat(g);
             }
           }
         }
       }
     };
+  },
+
+  combat : {
+
+    start : function(enemies) {
+      this.enemies = enemies;
+      var world = adventure.world,
+          canvas = adventure.canvas;
+      world.mode = "combat";
+      canvas.drawImage(world.background.image[0], 0, 0, 600, 600);
+      this.drawActors();
+    },
+
+    drawActors : function() {
+      var world = adventure.world,
+          hero = world.hero,
+          el = adventure.el,
+          canvas = adventure.canvas;
+      //canvas.drawImage(hero.image[0], 0, 0);
+      canvas.drawImage(hero.image[0], el.width/5, el.height/2);
+    },
+
   },
   
   squares : {x : 10, y : 10},
@@ -409,7 +483,7 @@ var adventure = {
         el = adventure.el,
         command = adventure.command;
     document.addEventListener('keydown', function(event) {
-      if (event.target.id == adventure.el.id) {
+      if (event.target.id == adventure.el.id && adventure.world.mode ==="map")  {
         switch (event.which) {
           case 65: //a
           case 37: //left
@@ -451,7 +525,6 @@ var adventure = {
   }
 
 };
-"use strict";
 adventure.loadResources(); //loadResources will call init when it's done
 
 
