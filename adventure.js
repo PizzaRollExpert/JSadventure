@@ -1,4 +1,18 @@
+
 "use strict";
+
+
+// Extending existing prototypes
+Function.prototype.curry = function() { //Currying! (http://ejohn.org/blog/partial-functions-in-javascript/)
+    var fn = this, args = Array.prototype.slice.call(arguments);
+    return function() {
+      return fn.apply(
+        this,
+        args.concat(Array.prototype.slice.call(arguments))
+      );
+    };
+  };
+
 
 //utility functions
 
@@ -27,7 +41,7 @@ function userCode(code) {
   adventure.command.history.unshift(code);
 
   //user-accesable variables;
-  var fireball = new Spell(200, "fire", "images/pixlfireball.png");
+  var fireball = new Spell(20, "fire", "images/pixlfireball.png");
 
   function say(what) {
     adventure.command.message('you: ' + what);
@@ -71,6 +85,7 @@ var Creature = function(hp, power, image, setup) {
     "repeat" : "no-repeat"
   });
   this.hp = hp;
+  this.maxHp = hp;
   this.setup = setup;
   this.power = power;
   this.image = image;
@@ -79,20 +94,11 @@ var Creature = function(hp, power, image, setup) {
   };
 
   this.damage = function(amount) {
-    var world = adventure.world,
-        map = adventure.map,
-        hero = world.hero;
-    this.hp -= amount;
-    if (this.hp <= 0) { //death x_x
-      console.log("hi");
-      adventure.world.mode = "map";
-      console.log(adventure.world.mode);
-      map.objects[hero.y][hero.x] = 0;
-      adventure.command.message("You win!");
-      adventure.map.mapActions();
-      adventure.map.draw("objects", false);
-      adventure.map.draw();
-      hero.move();
+    if (adventure.world.mode === "combat") {
+      this.hp -= amount;
+      if (this.hp <= 0) { //death x_x
+        adventure.combat.end();
+      }
     }
   };
 
@@ -105,12 +111,16 @@ var Creature = function(hp, power, image, setup) {
 
 
 var Spell = function(power, type, image){
-  this.power = power;
+  this.power = Math.pow(power, 1.1);
   this.type = type;
   this.image = image;
+  this.time = power * 50;
   this.cast = function() {
-    var damage = Math.pow(power, 1.1);
-    adventure.command.message("hit! " + damage + " points of damage")
+    adventure.spellQueue.addToQueue(this);
+  };
+  this.callback = function() {
+    var damage = this.power;
+    adventure.command.message("hit! " + damage + " points of damage");
     adventure.combat.target.damage(damage);
   };
 };
@@ -155,10 +165,11 @@ var adventure = {
       compY : 0,
 
       hp : 100,
+      maxHp : 100,
       damage : function(ammount){
         this.hp -= ammount;
         if (this.hp <= 0) {
-          adventure.gameOver() //to be implemented
+          adventure.gameOver(); //to be implemented
         }
       },
       
@@ -267,7 +278,7 @@ var adventure = {
         repeat : "no-repeat"
       },
 
-      opens : "chest", 
+      opens : "chest",
 
       actions : [new Action(0, 0, function(){
         var hero = adventure.world.hero;
@@ -406,15 +417,13 @@ var adventure = {
             v,f,g,k,
             j,o,
             toMap = [this.terain,this.objects];
-        //if (!this.actions) {
-          this.actions = [];
-          for (j = 0; adventure.squares.y > j; j++) {
-            this.actions[j] = [];
-            for (o = 0; adventure.squares.x > o; o++) {
-              this.actions[j][o] = [];
-            }
+        this.actions = [];
+        for (j = 0; adventure.squares.y > j; j++) {
+          this.actions[j] = [];
+          for (o = 0; adventure.squares.x > o; o++) {
+            this.actions[j][o] = [];
           }
-        //}
+        }
         for (i in toMap) {
           v = toMap[i];
           for (y in v) {
@@ -436,29 +445,51 @@ var adventure = {
   combat : {
 
     start : function(enemies) {
-      console.log(enemies);
       this.enemies = enemies;
       var world = adventure.world,
           canvas = adventure.canvas;
       world.mode = "combat";
       this.target = enemies[0];
-      canvas.drawImage(world.background.image[0], 0, 0, 600, 600);
-      this.drawActors();
+      this.draw();
+      this.interval = setInterval(this.draw, 10);
     },
 
-    drawActors : function() {
+    end : function () {    
+      var world = adventure.world,
+          map = adventure.map,
+          hero = world.hero;
+      window.clearInterval(this.interval);
+      adventure.world.mode = "map";
+      console.log(adventure.world.mode);
+      map.objects[hero.y][hero.x] = 0;
+      adventure.command.message("You win!");
+      adventure.map.mapActions();
+      adventure.map.draw("objects", false);
+      adventure.map.draw();
+      hero.move();
+    },
+
+    draw : function() {
       var world = adventure.world,
           hero = world.hero,
           el = adventure.el,
           canvas = adventure.canvas,
-          enemies = this.enemies,
-          i,v;
-      //canvas.drawImage(hero.image[0], 0, 0);
+          enemies = adventure.combat.enemies,
+          target = this.target,
+          shapes = adventure.shapes,
+
+          heroHealth = shapes.standardBar.curry('#f00', 40, 40),
+          enemyHealth = shapes.standardBar.curry('#f00'),
+
+          i, v;
+
+      canvas.drawImage(world.background.image[0], 0, 0, 600, 600);
       canvas.drawImage(hero.image[0], el.width/5, 600 - 115);
+      heroHealth(hero.hp/hero.maxHp);
       for (i in enemies) {
         v = enemies[i];
-        console.log(v);
         canvas.drawImage(v.image[0], 4*el.width/5, 600 - 115);
+        enemyHealth(el.width - 120, 40 + i * 10, v.hp/v.maxHp);
       }
     },
 
@@ -542,6 +573,34 @@ var adventure = {
     }
     
   },
+
+  shapes : {
+
+    pacman : function(x, y, radius, color, arcLength) {
+      var ctx = adventure.canvas;
+      if (color) ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(50, 50);
+      ctx.arc(50, 50, 50, 0, arcLength, true);
+      ctx.lineTo(50, 50);
+      ctx.stroke();
+    },
+
+    bar : function (outlineWidth, outlineColor, width, height, fillColor, x, y, fillAmount) {
+      var ctx = adventure.canvas;
+      ctx.fillStyle = outlineColor;
+      ctx.fillRect(x, y, 2 * outlineWidth + width, 2 * outlineWidth + height);
+      ctx.fillStyle = fillColor;
+      ctx.fillRect(x + outlineWidth, y + outlineWidth, Math.max(fillAmount, 0) * width, height);
+    },
+
+    standardBar : function(fillColor, x, y, fillWidth){
+      return adventure.shapes.bar(2, '#222', 80, 4, fillColor, x, y, fillWidth);
+    },
+
+  },
+
+
   
   loadResources : function() {
     adventure.toLoad = 0;
@@ -569,6 +628,32 @@ var adventure = {
         }
       }
     }
+  },
+
+  spellQueue : {
+
+    queue : [],
+
+    addToQueue : function(what) {
+
+      var queue = this.queue;
+
+      function callFirst() {
+        var first = queue[0];
+        if (first) {
+          setTimeout(function() {
+            first.callback();
+            queue.shift();
+            callFirst();
+          }, first.time);
+        }
+      }
+
+      queue.push(what);
+      if (queue.length === 1) callFirst();
+    },
+
+
   },
   
   eventHandling : function () {
@@ -619,8 +704,3 @@ var adventure = {
 
 };
 adventure.loadResources(); //loadResources will call init when it's done
-
-
-
-
-

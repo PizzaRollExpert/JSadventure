@@ -36,13 +36,15 @@ canvas {
   background: #675438;
   color: white;
   outline: 0;
-  font-family: "Andale Mono", AndaleMono, monospace;
+  font-family: inherit;
   width: calc(100% - 4px);
 }
 #commandBox .log {
   height: 115px;
   overflow-y: auto;
   font-size: 12px;
+  font-family: inherit;
+  font-weight: bold;
 }
 #commandBox .log::-webkit-scrollbar {
   width: 7px;
