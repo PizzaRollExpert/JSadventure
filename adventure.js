@@ -90,14 +90,16 @@ var Creature = function(hp, power, image, setup) {
   this.power = power;
   this.image = image;
   this.attack = function () {
+    console.log(this);
     adventure.world.hero.damage(this.power);
   };
 
   this.damage = function(amount) {
     if (adventure.world.mode === "combat") {
-      this.hp -= amount;
-      if (this.hp <= 0) { //death x_x
-        adventure.combat.end();
+        if (!adventure.combat.aggravated) adventure.combat.engage();
+        this.hp -= amount;
+        if (this.hp <= 0) { //death x_x
+          adventure.combat.end();
       }
     }
   };
@@ -127,6 +129,8 @@ var Spell = function(power, type, image){
 //the main thing
 
 var adventure = {
+
+  gameOver : function(){ adventure.command.message("you lost :(")},
   
   el : document.getElementById('JSadventure'),
   canvas : document.getElementById('JSadventure').getContext('2d'),
@@ -167,6 +171,7 @@ var adventure = {
       hp : 100,
       maxHp : 100,
       damage : function(ammount){
+        console.log(ammount);
         this.hp -= ammount;
         if (this.hp <= 0) {
           adventure.gameOver(); //to be implemented
@@ -444,21 +449,42 @@ var adventure = {
 
   combat : {
 
+    aggravated : false,
+
     start : function(enemies) {
       this.enemies = enemies;
       var world = adventure.world,
-          canvas = adventure.canvas;
+          canvas = adventure.canvas,
+          i, v;
       world.mode = "combat";
       this.target = enemies[0];
       this.draw();
       this.interval = setInterval(this.draw, 10);
     },
 
+    engage : function() {
+      var enemies = this.enemies,
+          i, v;
+      console.log("enemy engaged!");
+      this.aggravated = true;
+      for (i in enemies) {
+        v = enemies[i];
+        console.log(v);
+        v.interval = setInterval(v.attack.bind(v), 5000);
+      }
+    },
+
     end : function () {    
       var world = adventure.world,
           map = adventure.map,
-          hero = world.hero;
+          hero = world.hero,
+          enemies = adventure.combat.enemies,
+          i, v;
       window.clearInterval(this.interval);
+      for (i in enemies) {
+        v = enemies[i];
+        window.clearInterval(v.interval);
+      }
       adventure.world.mode = "map";
       console.log(adventure.world.mode);
       map.objects[hero.y][hero.x] = 0;
@@ -477,15 +503,23 @@ var adventure = {
           enemies = adventure.combat.enemies,
           target = this.target,
           shapes = adventure.shapes,
+          spellQueue = adventure.spellQueue,
+          startT = spellQueue.startT,
+          endT = spellQueue.endT,
+          timeScale = spellQueue.timeScale,
 
           heroHealth = shapes.standardBar.curry('#f00', 40, 40),
           enemyHealth = shapes.standardBar.curry('#f00'),
+          spellTimeMeter = shapes.pacman.curry(20, '#228', 60, 100),
 
           i, v;
 
       canvas.drawImage(world.background.image[0], 0, 0, 600, 600);
       canvas.drawImage(hero.image[0], el.width/5, 600 - 115);
       heroHealth(hero.hp/hero.maxHp);
+      if (adventure.spellQueue.casting === "true") {
+        spellTimeMeter((Date.now() - startT)/1000);
+      }
       for (i in enemies) {
         v = enemies[i];
         canvas.drawImage(v.image[0], 4*el.width/5, 600 - 115);
@@ -576,14 +610,15 @@ var adventure = {
 
   shapes : {
 
-    pacman : function(x, y, radius, color, arcLength) {
+    pacman : function(radius, color, x, y, arcLength) {
       var ctx = adventure.canvas;
       if (color) ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.moveTo(50, 50);
-      ctx.arc(50, 50, 50, 0, arcLength, true);
-      ctx.lineTo(50, 50);
+      ctx.moveTo(x, y);
+      ctx.arc(x, y, radius, 0, 2 * (1 + arcLength) * Math.PI , true);
+      ctx.lineTo(x, y);
       ctx.stroke();
+      ctx.fill();
     },
 
     bar : function (outlineWidth, outlineColor, width, height, fillColor, x, y, fillAmount) {
@@ -634,23 +669,41 @@ var adventure = {
 
     queue : [],
 
+    startT : 0,
+    endT : 0,
+    timeScale : 0,
+
     addToQueue : function(what) {
 
-      var queue = this.queue;
+      var queue = this.queue,
+          startT = this.startT,
+          endT = this.endT,
+          timeScale = adventure.spellQueue.timeScale;
 
       function callFirst() {
-        var first = queue[0];
+        var queue = adventure.spellQueue.queue,
+            startT = adventure.spellQueue.startT,
+            endT = adventure.spellQueue.endT,
+            timeScale = adventure.spellQueue.timeScale,
+            first = queue[0];
         if (first) {
+          adventure.spellQueue.casting = "true";
+          adventure.spellQueue.startT = Date.now();
+          adventure.spellQueue.endT = startT + first.time;
+          adventure.spellQueue.timeScale = first.time;
+          console.log(adventure.spellQueue.timeScale);
           setTimeout(function() {
             first.callback();
             queue.shift();
             callFirst();
           }, first.time);
+        } else {
+          adventure.spellQueue.casting = "false";
         }
       }
 
       queue.push(what);
-      if (queue.length === 1) callFirst();
+      if (queue.length === 1) callFirst.apply(adventure.spellQueue);
     },
 
 
@@ -703,4 +756,16 @@ var adventure = {
   }
 
 };
+
+var adv = adventure,
+    world = adv.world,
+    map = adv.map,
+    draw = adv.draw,
+    el = adv.el,
+    squares = adv.squares,
+    canvas = adv.canvas,
+    
+    hero = world.hero;
+
+
 adventure.loadResources(); //loadResources will call init when it's done
