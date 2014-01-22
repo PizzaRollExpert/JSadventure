@@ -27,6 +27,11 @@ function defaultObj(object, value) {
   return object;
 }
 
+function rgb(red, blue, green) {
+  return 'rgb(' + Math.round(red) + ', ' + Math.round(blue) + ', ' +  Math.round(green) + ')';
+}
+
+
 function bound(num, a, b) {
   var low = Math.min(a, b);
   var high = Math.max(a, b);
@@ -79,18 +84,19 @@ var Action = function(x, y, callback) {
 
 
 
-var Creature = function(hp, power, image, setup) {
+var Creature = function(hp, power, image, name, setup) {
   var self = this;
   setup = defaultObj(setup, {
     "repeat" : "no-repeat"
   });
+  this.name = name;
   this.hp = hp;
   this.maxHp = hp;
   this.setup = setup;
   this.power = power;
   this.image = image;
   this.attack = function () {
-    console.log(this);
+    adventure.command.message(this.name + " hits you for " + this.power + " points of damage");
     adventure.world.hero.damage(this.power);
   };
 
@@ -130,7 +136,6 @@ var Spell = function(power, type, image){
 
 var adventure = {
 
-  gameOver : function(){ adventure.command.message("you lost :(")},
   
   el : document.getElementById('JSadventure'),
   canvas : document.getElementById('JSadventure').getContext('2d'),
@@ -189,7 +194,7 @@ var adventure = {
       move : function(x, y, type) {
 
         var map = adventure.map,
-            terain = map.terain[this.y][this.x],
+            //terain = map.terain[this.y][this.x],
             obj = map.objects[this.y][this.x],
             
             squares = adventure.squares,
@@ -222,7 +227,8 @@ var adventure = {
     },
 
     ork : new Creature(100, 10,
-      ["images/pixlork2.png"]
+      ["images/pixlork2.png"],
+      "Ork"
     ),
 
     background : {
@@ -234,8 +240,48 @@ var adventure = {
     },
     
     grass : {
-      image : ["images/pixlgrass.png", "images/pixlgrass2.png", "images/pixlgrass3.png"],
+      //image : ["images/pixlgrass.png", "images/pixlgrass2.png", "images/pixlgrass3.png"],
+      pattern : function (startX, startY, endX, endY, ctx) {
+        console.log([startX, startY, endX, endY, ctx]);
+        function mapColors(c, i) {
+          var up = 110, down = 90;
+          if (i === 1) {up = 235; down = 170;}
+          return bound((c + oldLine[x][i])/2 + Math.random() * 20 - 10, down, up);
+        }
+        var width = 5,
+            color = [
+              Math.random() * 50 + 90,
+              Math.random() * 105 + 155,
+              Math.random() * 30 + 90
+            ],
+            oldLine = [],
+            y, x;
+        for (y = startY; y < endY; y += width) {
+          color = [
+            Math.random() * 50 + 90,
+            Math.random() * 105 + 155,
+            Math.random() * 30 + 90
+          ];
+          for (x = startX; x < endX; x += width) {
+            if (!oldLine[x]) oldLine[x] = color;
+            color = color.map(mapColors);
+            oldLine[x] = color;
+            ctx.fillStyle = rgb(color[0], color[1], color[2]);
+            ctx.fillRect(x, y, width, width);
+          }
+          y += width;
+          for (x = endX - width; x >= 0; x -= width) {
+            if (!oldLine[x]) oldLine[x] = color;
+            color = color.map(mapColors);
+            oldLine[x] = color;
+            ctx.fillStyle = rgb(color[0], color[1], color[2]);
+            ctx.fillRect(x, y, width, width);
+          }
+        }
+
+      }
     },
+
     brick : {
       image : ["images/pixlbrick.png"],
       
@@ -343,31 +389,28 @@ var adventure = {
         t = adventure.world.treasure,
         k = adventure.world.key,
 
-        o = adventure.world.ork;
+        o = adventure.world.ork,
+
+        maxWidth = adventure.squares.x,
+        maxHeight = adventure.squares.y;
     
     return {
       terain : [
-        [g,g,g,g,g,g,g,g,g,g],
-        [g,g,g,g,g,g,g,g,b,b],
-        [g,g,g,g,g,g,g,g,g,g],
-        [g,g,g,g,b,b,b,b,b,g],
-        [g,g,g,g,b,g,g,g,b,g],
-        [g,g,g,g,g,g,g,g,b,g],
-        [g,g,g,g,b,g,g,g,b,g],
-        [g,g,g,g,b,b,b,b,b,g],
-        [g,g,g,g,g,g,g,g,g,g],
-        [g,g,g,g,g,g,g,g,g,g]
+        [[g, {
+          x : [0, maxWidth],
+          y : [0, maxHeight]
+        }]]
       ],
       
      objects : [
         [0,0,0,0,0,0,0,0,o,k],
+        [0,0,0,0,0,0,0,0,b,b],
         [0,0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,p,0,t,0,0,0],
-        [0,0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,b,b,b,b,b,0],
+        [0,0,0,0,b,0,0,0,b,0],
+        [0,0,0,0,p,0,t,0,b,0],
+        [0,0,0,0,b,0,0,0,b,0],
+        [0,0,0,0,b,b,b,b,b,0],
         [0,0,0,0,0,0,0,0,0,0],
         [0,0,0,0,0,0,0,0,0,0]
       ],
@@ -391,7 +434,7 @@ var adventure = {
           v = toLoopThrough[i];
           v || console.error("unexpected value on v:" + v + ".\b what = " + what);
           if (this.cache[i] && useCache) {
-          adventure.canvas.drawImage(this.cache[i], 0, 0, adventure.el.width, adventure.el.height);
+            adventure.canvas.drawImage(this.cache[i], 0, 0, adventure.el.width, adventure.el.height);
           } else {
             cacheCanvas = document.createElement('canvas');
             cacheCanvas.width = adventure.world.width;
@@ -518,7 +561,7 @@ var adventure = {
       canvas.drawImage(hero.image[0], el.width/5, 600 - 115);
       heroHealth(hero.hp/hero.maxHp);
       if (adventure.spellQueue.casting === "true") {
-        spellTimeMeter((Date.now() - startT)/1000);
+        spellTimeMeter((Date.now() - startT)/timeScale);
       }
       for (i in enemies) {
         v = enemies[i];
@@ -528,24 +571,32 @@ var adventure = {
     },
 
   },
+
+
+  gameOver : function(){ 
+    combat.end();
+    adventure.command.message("you lost :(");
+  },
   
   squares : {x : 10, y : 10},
   
   init : function() {
-    adventure.map = adventure.map();
-    var adv = adventure,
-        world = adv.world,
-        map = adv.map,
-        draw = adv.draw,
-        el = adv.el,
-        squares = adv.squares,
-        canvas = adv.canvas,
+    map = map();
+    adventure.map = map;
+    // var adv = adventure,
+    //     world = adv.world,
+    //     map = adv.map,
+    //     draw = adv.draw,
+    //     el = adv.el,
+    //     squares = adv.squares,
+    //     canvas = adv.canvas,
         
-        hero = world.hero;
+    //     hero = world.hero;
     
     adventure.eventHandling();
 
     map.draw();
+
     map.mapActions();
     hero.move(map.start.x, map.start.y, "abs");
   },
@@ -560,6 +611,7 @@ var adventure = {
     } else {
       setupdata = {};
     }
+
     setupdata.repeat = defaultVal(setupdata.repeat, "repeat");
     setupdata.imgnum = defaultVal(setupdata.imgnum, "random");
     setupdata.align = defaultVal(
@@ -573,14 +625,18 @@ var adventure = {
     var adv = adventure,
         width = canvas.canvas.height / adv.squares.x,
         height = canvas.canvas.height / adv.squares.y,
+        item = obj instanceof Array ? obj[0] : obj,
         xPos, yPos;
-    
-    if (obj.image) {
-      var length = obj.image.length,
-          img = obj.image,
+    console.log(item);
+    if (item.pattern) {
+      item.pattern(obj[1].x[0]*width, obj[1].y[0]*height, obj[1].x[1]*width, obj[1].y[1]*height, canvas);
+    }
+    if (item.image) {
+      var length = item.image.length,
+          img = item.image,
           v, i, j, imgNum, imgHeight, imgWidth;
       for (i = 0; height > i; i += img[imgNum].height) {
-        for (j = 0; width > j; j += img[imgNum].width) {  
+        for (j = 0; width > j; j += img[imgNum].width) {
           imgNum = setupdata.imgnum === "random" ?
             Math.round(Math.random() * (length - 1)) :
             parseInt(setupdata.imgnum);
@@ -764,6 +820,7 @@ var adv = adventure,
     el = adv.el,
     squares = adv.squares,
     canvas = adv.canvas,
+    combat = adventure.combat,
     
     hero = world.hero;
 
